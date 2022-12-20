@@ -1,0 +1,6 @@
+[submodule "thirdparty/asmjit"]
+	path = thirdparty/asmjit
+	url = https://github.com/asmjit/asmjit.git
+[submodule "tests/lib/googletest"]
+	path = tests/lib/googletest
+	url = https://github.com/google/googletest.git
