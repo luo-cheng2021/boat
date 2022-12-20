@@ -181,7 +181,7 @@ void jit_memset0(coat::Ptr<coat::Value<int8_t>> p, int size) {
 //     for k_block_tail in ..K
 using func_m_t = void (*)(int m, float* a, float* b, float* c, Jit::PostOpRuntimeParams* post_runtime_params);
 template <unsigned width>
-func_m_t gemm<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc, Jit::PostOpStaticParams* post_static_params, const int ur_num, const int oc_num) {
+func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc, Jit::PostOpStaticParams* post_static_params, const int ur_num, const int oc_num) {
     auto fn = coat::createFunction<func_m_t>("brgemm");
     if constexpr (width == 16)
         fn.funcNode->frame().setAvx512Enabled();
@@ -413,6 +413,6 @@ void delete_func(void *p) {
     coat::getJitRuntimeEnv().release_func(p);
 }
 
-template struct gemm<16>;
+template struct kernel<16>;
 
 };

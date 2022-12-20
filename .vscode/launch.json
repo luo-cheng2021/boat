@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/test_float",
+            "program": "${workspaceFolder}/build/bin/boat_tests",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

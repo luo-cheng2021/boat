@@ -61,7 +61,7 @@ void test_stride_func(int M, int N, int K) {
     post_ops.ops[0].alg_type = Jit::AlgType::Abs;
     post_ops.ops[1].alg_type = Jit::AlgType::Add;
     post_ops.ops[1].binary_param.layout = Jit::BinaryDataLayout::PerChannel;
-    auto f = Jit::gemm<16>::make_gemm_stride(N, K, K * 4, N * 4, N * 4, &post_ops);
+    auto f = Jit::kernel<16>::make_gemm_stride(N, K, K * 4, N * 4, N * 4, &post_ops);
     Jit::PostOpRuntimeParams ops;
     ops.params[1].right_addr = d.data();
 
@@ -93,7 +93,7 @@ void test_stride_func_dyn_m(int M, int N, int K) {
     post_ops.ops[0].alg_type = Jit::AlgType::Abs;
     post_ops.ops[1].alg_type = Jit::AlgType::Add;
     post_ops.ops[1].binary_param.layout = Jit::BinaryDataLayout::PerChannel;
-    auto f = Jit::gemm<16>::make_gemm_stride(N, K, K * 4, N * 4, N * 4, &post_ops);
+    auto f = Jit::kernel<16>::make_gemm_stride(N, K, K * 4, N * 4, N * 4, &post_ops);
     Jit::PostOpRuntimeParams ops;
 
     // postops, perchannel

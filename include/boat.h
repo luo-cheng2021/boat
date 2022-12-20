@@ -112,8 +112,12 @@ struct PostOpRuntimeParams {
 
 using func_m_t = void (*)(int m, float* a, float* b, float* c, Jit::PostOpRuntimeParams* post_runtime_params);
 template <unsigned width>
-struct gemm {
+struct kernel {
     static func_m_t make_gemm_stride(int N, int K, int lda, int ldb, int ldc, Jit::PostOpStaticParams* post_static_params, const int ur_num = 8, const int oc_num = 3);
+};
+
+struct driver {
+    static void test();
 };
 
 template<typename T>
