@@ -5,6 +5,7 @@
 #include <memory>
 #include <chrono>
 #include <iostream>
+#include <assert.h>
 
 #include <coat/Function.h>
 #include <coat/ControlFlow.h>
@@ -14,7 +15,7 @@
 
 #define ENABLE_DUMP 0
 
-namespace Jit {
+namespace boat {
 ////////////////////////////////////////////////////
 // generate jit kernel needed param when injecting kernels, private
 struct PostOpInjectParam {
@@ -31,9 +32,9 @@ template<unsigned width>
 using share_vec = std::shared_ptr<coat::Vec<float, width>>;
 
 template <unsigned width>
-void inject_postops(int vecs_num, std::vector<share_vec<width>> vecs, PostOpStaticParams* ops_param, PostOpInjectParams* inject_ops_param) {
-    for (auto i = 0; i < ops_param->num; i++) {
-        switch (ops_param->ops[i].alg_type) {
+void inject_postops(int vecs_num, std::vector<share_vec<width>> vecs, PostOpStaticParams& ops_param, PostOpInjectParams& inject_ops_param) {
+    for (auto i = 0; i < ops_param.num; i++) {
+        switch (ops_param.ops[i].alg_type) {
             case AlgType::Abs: {
                 coat::Vec<float, width> tmp;
                 std::for_each(vecs.begin(), vecs.begin() + vecs_num, [&] (share_vec<width> vec) {
@@ -44,16 +45,16 @@ void inject_postops(int vecs_num, std::vector<share_vec<width>> vecs, PostOpStat
                 break;
             }
             case AlgType::Add: {
-                if (inject_ops_param->params[i].layout == BinaryDataLayout::PerTensor) {
+                if (inject_ops_param.params[i].layout == BinaryDataLayout::PerTensor) {
                     coat::Vec<float, width> tmp;
-                    tmp.load(inject_ops_param->params[i].right_addrs_base[0], true);
+                    tmp.load(inject_ops_param.params[i].right_addrs_base[0], true);
                     std::for_each(vecs.begin(), vecs.begin() + vecs_num, [&] (share_vec<width> vec) {
                         *vec += tmp;
                     });
-                } else if (inject_ops_param->params[i].layout == BinaryDataLayout::PerChannel) {
-                    auto& base = inject_ops_param->params[i].right_addrs_base;
+                } else if (inject_ops_param.params[i].layout == BinaryDataLayout::PerChannel) {
+                    auto& base = inject_ops_param.params[i].right_addrs_base;
                     for (int j = 0; j < vecs_num; j++) {
-                        auto idx = inject_ops_param->params[i].right_addrs_offset[j];
+                        auto idx = inject_ops_param.params[i].right_addrs_offset[j];
                         *vecs[j] += base[idx];
                     }
                 }
@@ -179,10 +180,10 @@ void jit_memset0(coat::Ptr<coat::Value<int8_t>> p, int size) {
 //         for m in ur
 //           for n in n_block
 //     for k_block_tail in ..K
-using func_m_t = void (*)(int m, float* a, float* b, float* c, Jit::PostOpRuntimeParams* post_runtime_params);
+using func_t = void (*)(int m, uint8_t* a, uint8_t* b, uint8_t* c, const PostOpRuntimeParams* post_runtime_params);
 template <unsigned width>
-func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc, Jit::PostOpStaticParams* post_static_params, const int ur_num, const int oc_num) {
-    auto fn = coat::createFunction<func_m_t>("brgemm");
+static func_t make_gemm_stride(int N, int K, int lda, int ldb, int ldc, PostOpStaticParams post_static_params) {
+    auto fn = coat::createFunction<func_t>("brgemm");
     if constexpr (width == 16)
         fn.funcNode->frame().setAvx512Enabled();
     else if  constexpr (width == 8)
@@ -190,10 +191,14 @@ func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc
 #if ENABLE_DUMP
     fn.enableCodeDump();
 #endif
-    if ((N + width - 1) / width != static_cast<unsigned>(oc_num)) {
-        std::cout << "oc_num must be equal ceil(N/width)" << std::endl;
+    int oc_num = static_cast<unsigned>((N + width - 1) / width);
+    if (oc_num <= 0 || oc_num > 4) {
+        std::cout << "oc_num must be in [1, 64]" << std::endl;
         return nullptr;
     }
+    // oc_num:               1  2  3  4
+    static int ur_table[] = {8, 8, 8, 6};
+    int ur_num = ur_table[oc_num - 1];
     {
         bool has_n_tail = (N % width) != 0;
         if (has_n_tail) {
@@ -203,9 +208,12 @@ func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc
         lda /= sizeof(float);
         ldb /= sizeof(float);
         ldc /= sizeof(float);
-        auto [j_M, j_a, j_b, j_c, j_post_runtime_params] = fn.getArguments("m", "a", "b", "c", "ops");
-        std::vector<Jit::share_vec<width>> j_weight(oc_num);
-        std::vector<Jit::share_vec<width>> j_result;
+        auto [j_M, j_a_, j_b_, j_c_, j_post_runtime_params] = fn.getArguments("m", "a", "b", "c", "ops");
+        auto j_a = j_a_.cast<float>();
+        auto j_b = j_b_.cast<float>();
+        auto j_c = j_c_.cast<float>();
+        std::vector<share_vec<width>> j_weight(oc_num);
+        std::vector<share_vec<width>> j_result;
         for (int i = 0; i < oc_num; i++) {
             j_weight[i] = std::make_shared<coat::Vec<float, width>>();
         }
@@ -215,14 +223,14 @@ func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc
         coat::Vec<float, width> j_data;
 
         // postops
-        Jit::PostOpInjectParams inject_postops_param;
+        PostOpInjectParams inject_postops_param;
         using share_p = std::shared_ptr<coat::Ptr<coat::Value<float>>>;
         std::vector<share_p> post_ops_runtime_addrs;
         // extract all second address from parameter 'ops' of jit func
-        for (auto i = 0; i < post_static_params->num; i++) {
-            if (post_static_params->ops[i].alg_type >= Jit::AlgType::Add) {
-                auto params = j_post_runtime_params.get_value<Jit::PostOpRuntimeParams::member_params>("params");
-                auto addr = params[i].get_value<Jit::PostOpRuntimeParam::member_right_addr>("addr");
+        for (auto i = 0; i < post_static_params.num; i++) {
+            if (post_static_params.ops[i].alg_type >= AlgType::Add) {
+                auto params = j_post_runtime_params.get_value<PostOpRuntimeParams::member_params>("params");
+                auto addr = params[i].get_value<PostOpRuntimeParam::member_right_addr>("addr");
                 // TODO: ptr has no 'operator= addr'
                 auto op = std::make_shared<share_p::element_type>(addr);
                 post_ops_runtime_addrs.push_back(op);
@@ -234,11 +242,11 @@ func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc
         }
         // compute all address for binary ops
         auto prepare_inject_param = [&] (int ur_num, int oc_num) {
-            for (auto i = 0; i < post_static_params->num; i++) {
-                if (post_static_params->ops[i].alg_type >= Jit::AlgType::Add && post_static_params->ops[i].binary_param.layout != Jit::BinaryDataLayout::PerTensor) {
+            for (auto i = 0; i < post_static_params.num; i++) {
+                if (post_static_params.ops[i].alg_type >= AlgType::Add && post_static_params.ops[i].binary_param.layout != BinaryDataLayout::PerTensor) {
                     auto& ptr = *post_ops_runtime_addrs[i];
                     inject_postops_param.params[i].right_addrs_offset.clear();
-                    inject_postops_param.params[i].layout = post_static_params->ops[i].binary_param.layout;
+                    inject_postops_param.params[i].layout = post_static_params.ops[i].binary_param.layout;
                     inject_postops_param.params[i].right_addrs_base.reg = ptr.reg;
                     for (int j = 0; j < ur_num; j++)
                         for (int k = 0; k < oc_num; k++)
@@ -273,7 +281,7 @@ func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc
         };
         auto save_post = [&] (int ur_num, int oc_num, bool has_n_tail, int ldc, coat::wrapper_type<float *>& j_c) {
             prepare_inject_param(ur_num, oc_num);
-            Jit::inject_postops<width>(ur_num * oc_num, j_result, post_static_params, &inject_postops_param);
+            inject_postops<width>(ur_num * oc_num, j_result, post_static_params, inject_postops_param);
             for (int m = 0; m < ur_num; m++) {
                 for (int n = 0; n < oc_num - has_n_tail; n++) {
                     j_result[m * oc_num + n]->store(j_c[m * ldc + n * width]);
@@ -409,10 +417,43 @@ func_m_t kernel<width>::make_gemm_stride(int N, int K, int lda, int ldb, int ldc
     return foo;
 }
 
-void delete_func(void *p) {
-    coat::getJitRuntimeEnv().release_func(p);
+template <cpu_isa_t isa>
+struct gemm_kernel<isa>::gemm_kernel_impl {
+    func_t _func;
+    gemm_kernel_impl() : _func(nullptr) {
+    }
+    bool init(const GemmDynMStaticParam& static_param) {
+        if constexpr (static_cast<unsigned>(isa) & avx512_core_bit)
+            if (static_param.a_type == dnnl_f32 &&
+                static_param.b_type == dnnl_f32 &&
+                static_param.c_type == dnnl_f32)
+            _func = make_gemm_stride<16>(static_param.N, static_param.K, static_param.lda, static_param.ldb,
+                static_param.ldc, static_param.post_static_params);
+        return _func != nullptr;
+    }
+    ~gemm_kernel_impl() {
+        if (_func)
+            coat::getJitRuntimeEnv().release_func(_func);
+    }
+};
+
+template <cpu_isa_t isa>
+gemm_kernel<isa>::gemm_kernel() :
+    _impl(std::make_shared<gemm_kernel_impl>()) {
 }
 
-template struct kernel<16>;
+template <cpu_isa_t isa>
+bool gemm_kernel<isa>::init(const GemmDynMStaticParam& static_param) {
+    return _impl->init(static_param);
+}
+
+template <cpu_isa_t isa>
+void gemm_kernel<isa>::operator()(const GemmDynMRuntimeParam& runtime_param) {
+    assert(_impl->_func);
+    _impl->_func(runtime_param.m, static_cast<uint8_t*>(runtime_param.a), static_cast<uint8_t*>(runtime_param.b),
+        static_cast<uint8_t*>(runtime_param.c), &runtime_param.post_runtime_params);
+}
+
+template struct gemm_kernel<cpu_isa_t::avx512_core>;
 
 };

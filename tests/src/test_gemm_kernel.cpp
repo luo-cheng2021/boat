@@ -7,148 +7,144 @@
 #include <iostream>
 #include "gtest/gtest.h"
 #include "boat.h"
+#include "test_gemm_common.h"
 
 using namespace std;
+using namespace boat;
+using ::testing::TestWithParam;
+using ::testing::Values;
+using ::testing::ValuesIn;
 
-class GemmTest : public ::testing::Test {
+using GemmKernelTestParamSet = std::tuple<
+        int,                                         // M
+        int,                                         // N
+        int                                          // K
+        >;
+
+class GemmKernelTest : public TestWithParam<GemmKernelTestParamSet> {
+public:
+    static std::string getTestCaseName(const testing::TestParamInfo<GemmKernelTestParamSet>& obj) {
+        int M, N, K;
+        std::tie(M, N, K) = obj.param;
+
+        std::ostringstream result;
+        result << "M_" << M << "_N_" << N << "_K_" << K;
+        return result.str();
+    }
 
 protected:
+    virtual void SetUp() {
+        auto [M, N, K] = GetParam();
+        _M = M; _N = N; _K = K;
+        GemmDynMStaticParam param = {
+            dnnl_f32, dnnl_f32, dnnl_f32,
+            N, K, K * 4, N * 4, N * 4
+        };
+        PostOpStaticParams& post_ops = param.post_static_params;
+        post_ops.num = 2;
+        post_ops.ops[0].alg_type = AlgType::Abs;
+        post_ops.ops[1].alg_type = AlgType::Add;
+        post_ops.ops[1].binary_param.layout = BinaryDataLayout::PerChannel;
+        EXPECT_TRUE(_gemm.init(param));
+    };
 
-  virtual void SetUp() {
-  };
+    virtual void TearDown() {
+    };
 
-  virtual void TearDown() {
-  };
-
-  virtual void verify(int index) {
-    EXPECT_EQ(index + 1, 1);
-  }
+    virtual void verify(int index) {
+        EXPECT_EQ(index + 1, 1);
+    }
+    gemm_kernel<cpu_isa_t::avx512_core> _gemm;
+    int _M, _N, _K;
 };
 
-TEST_F(GemmTest, Case1) {
-  verify(0);
-}
-
-static void matmul_ref(float* a, float* b, float* c, int M, int N, int K, int lda, int ldb, int ldc, float* ops = nullptr) {
-#define A(i, j) a[(j) + (i) * lda]
-#define B(i, j) b[(j) + (i) * ldb]
-#define C(i, j) c[(j) + (i) * ldc]
-
-    int i, j, p;
-    for (i = 0; i < M; i++) {
-        for (j = 0; j < N; j++) {
-            C(i, j) = ops == nullptr ? 0 : ops[j];//j; // post ops, per-channel
-            for (p = 0; p < K; p++) {
-                C(i, j) += A(i, p) * B(p, j);
-            }
-        }
-    }
-}
-
-void test_stride_func(int M, int N, int K) {
-    // postops, perchannel
-    std::vector<float> d(N, 0);
+TEST_P(GemmKernelTest, Normal) {
+    std::vector<float> d(_N, 0);
     std::iota(d.begin(), d.end(), 10000000.0f);
     d[1] += d[0];
     d[2] += d[1];
 
-    std::vector<float> a(M * K, 2), b(K * N, 1), c(M * N), c_ref(M * N);
+    std::vector<float> a(_M * _K, 2), b(_K * _N, 1), c(_M * _N), c_ref(_M * _N);
     std::iota(a.begin(), a.end(), 1.0f);
     std::iota(b.begin(), b.end(), 2.0f);
-
-    Jit::PostOpStaticParams post_ops;
-    post_ops.num = 2;
-    post_ops.ops[0].alg_type = Jit::AlgType::Abs;
-    post_ops.ops[1].alg_type = Jit::AlgType::Add;
-    post_ops.ops[1].binary_param.layout = Jit::BinaryDataLayout::PerChannel;
-    auto f = Jit::kernel<16>::make_gemm_stride(N, K, K * 4, N * 4, N * 4, &post_ops);
-    Jit::PostOpRuntimeParams ops;
+    GemmDynMRuntimeParam rtParam = {
+        _M, a.data(), b.data(), c.data()
+    };
+    PostOpRuntimeParams& ops = rtParam.post_runtime_params;    
     ops.params[1].right_addr = d.data();
 
-    f(M, a.data(), b.data(), c.data(), &ops);
-    matmul_ref(a.data(), b.data(), c_ref.data(), M, N, K, K, N, N, d.data());
+    _gemm(rtParam);
+    matmul_ref(a.data(), b.data(), c_ref.data(), _M, _N, _K, _K, _N, _N, d.data());
+    int status = 1;
     if (c == c_ref) {
-        printf("M %d, N %d, K %d: correct \n", M, N, K);
+        status = 0;
     }
     else {
-        bool error = false;
         for (int i = 0; i < (int)c.size(); i++) {
             if (std::abs(c[i] - c_ref[i]) > 0.00001f * std::abs(c[i])) {
-                error = true;
+                status = -1;
                 printf("first error at %d, cur %f ref %f\n", i, c[i], c_ref[i]);
                 break;
             }
         }
-        if (error)
-            printf("M %d, N %d, K %d: wrong result\n", M, N, K);
-        else
-            printf("M %d, N %d, K %d: correct with minor error\n", M, N, K);
+        if (status == 1)
+            printf("M %d, N %d, K %d: correct with minor error\n", _M, _N, _K);
     }
-    Jit::delete_func(Jit::cast(f));
+    EXPECT_TRUE(status >= 0);
 }
 
-void test_stride_func_dyn_m(int M, int N, int K) {
-    Jit::PostOpStaticParams post_ops;
-    post_ops.num = 0;
-    post_ops.ops[0].alg_type = Jit::AlgType::Abs;
-    post_ops.ops[1].alg_type = Jit::AlgType::Add;
-    post_ops.ops[1].binary_param.layout = Jit::BinaryDataLayout::PerChannel;
-    auto f = Jit::kernel<16>::make_gemm_stride(N, K, K * 4, N * 4, N * 4, &post_ops);
-    Jit::PostOpRuntimeParams ops;
+TEST_P(GemmKernelTest, DynM) {
+    std::vector<float> d(_N, 0);
+    std::iota(d.begin(), d.end(), 10000000.0f);
+    d[1] += d[0];
+    d[2] += d[1];
 
-    // postops, perchannel
-    std::vector<float> d(N, 0);
-    std::iota(d.begin(), d.end(), 0.0f);
-
-    std::vector<float> b(K * N, 1);
+    std::vector<float> b(_K * _N, 1);
     std::iota(b.begin(), b.end(), 2.0f);
+    GemmDynMRuntimeParam rtParam;
+    PostOpRuntimeParams& ops = rtParam.post_runtime_params;
     ops.params[1].right_addr = d.data();
 
-    for (int m = M; m < 3 * M; m += M) {
-        std::vector<float> a(m * K, 2), c(m * N), c_ref(m * N);
+    for (int m = _M; m < 3 * _M; m += _M) {
+        std::vector<float> a(m * _K, 2), c(m * _N), c_ref(m * _N);
         std::iota(a.begin(), a.end(), 1.0f);
-
-        f(m, a.data(), b.data(), c.data(), &ops);
-        matmul_ref(a.data(), b.data(), c_ref.data(), m, N, K, K, N, N, d.data());
+        rtParam.m = m;
+        rtParam.a = a.data();
+        rtParam.b = b.data();
+        rtParam.c = c.data();
+        _gemm(rtParam);
+        matmul_ref(a.data(), b.data(), c_ref.data(), m, _N, _K, _K, _N, _N, d.data());
+        int status = 1;
         if (c == c_ref) {
-            printf("M %d, N %d, K %d: correct \n", m, N, K);
+            status = 0;
         }
         else {
-            bool error = false;
             for (int i = 0; i < (int)c.size(); i++) {
                 if (std::abs(c[i] - c_ref[i]) > 0.00001f * std::abs(c[i])) {
-                    error = true;
+                    status = -1;
                     printf("first error at %d, cur %f ref %f\n", i, c[i], c_ref[i]);
                     break;
                 }
             }
-            if (error)
-                printf("M %d, N %d, K %d: wrong result\n", m, N, K);
-            else
-                printf("M %d, N %d, K %d: correct with minor error\n", m, N, K);
+            if (status == 1)
+                printf("M %d, N %d, K %d: correct with minor error\n", m, _N, _K);
         }
+        EXPECT_TRUE(status >= 0);
     }
-    Jit::delete_func(Jit::cast(f));
 }
 
-void test_stride_funcs() {
+const std::vector<GemmKernelTestParamSet> kernelCase = {
     // normal
-    test_stride_func(256, 48, 448);
+    {256, 48, 448},
     // k tail
-    test_stride_func(256, 48, 449);
+    {256, 48, 449},
     // M tail == unroll 8
-    test_stride_func(256 + 8, 48, 449);
+    {256 + 8, 48, 449},
     // M tail == unroll 8 + 2
-    test_stride_func(256 + 10, 48, 449);
+    {256 + 10, 48, 449},
     // N tail
-    test_stride_func(256, 40, 448);
+    {256, 40, 448},
     // all tail
-    test_stride_func(256 + 9, 47, 449);
-    // dyn M
-    test_stride_func_dyn_m(256 + 9, 38, 449);
-}
-
-TEST(GemmTestFunc, Func) {
-    //FAIL() << "Expected divide() method to throw DivisionByZeroException";
-    test_stride_funcs();
-}
+    {256 + 9, 47, 449},
+};
+INSTANTIATE_TEST_SUITE_P(smoke_GemmKernel, GemmKernelTest, ValuesIn(kernelCase), GemmKernelTest::getTestCaseName);

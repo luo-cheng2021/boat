@@ -616,6 +616,8 @@ int getpagesize();
 
 constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {
+    UNUSED(size);
+    UNUSED(ptr);
 #if MSAN_ENABLED
     __msan_unpoison(ptr, size);
 #endif
