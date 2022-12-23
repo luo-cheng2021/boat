@@ -138,7 +138,7 @@ static std::vector<int> Ms = {
 };
 
 static std::vector<int> Ns = {
-    12, 19, 34, 55
+    12, 34, 55, 127, 456
 };
 
 static std::vector<int> Ks = {

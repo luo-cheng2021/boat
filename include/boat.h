@@ -185,7 +185,7 @@ struct GemmDynMStaticParam {
     dnnl_data_type_t a_type, b_type, c_type;
     int N, K;   // for kernel N must be in [1, 64]
     int lda, ldb, ldc;
-    boat::PostOpStaticParams post_static_params;
+    PostOpStaticParams post_static_params;
 };
 // runtime changable
 struct GemmDynMRuntimeParam {
@@ -193,7 +193,7 @@ struct GemmDynMRuntimeParam {
     void* a;
     void* b;
     void* c;
-    boat::PostOpRuntimeParams post_runtime_params;
+    PostOpRuntimeParams post_runtime_params;
 };
 template <cpu_isa_t isa>
 struct gemm_kernel {
