@@ -7,3 +7,6 @@
 [submodule "thirdparty/oneTBB"]
 	path = thirdparty/oneTBB
 	url = https://github.com/oneapi-src/oneTBB.git
+[submodule "tests/lib/gflags"]
+	path = tests/lib/gflags
+	url = https://github.com/gflags/gflags.git

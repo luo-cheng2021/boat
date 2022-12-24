@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 
 namespace boat {
 // copy from oneDNN

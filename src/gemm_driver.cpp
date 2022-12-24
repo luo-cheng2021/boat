@@ -58,12 +58,44 @@ struct gemm_driver::gemm_driver_impl {
     }
 
     int get_M_block(int M) {
+        // max m block that fits in L2
         auto N_block = _N_block ? _N_block : _N_block_tail;
         auto B_size = N_block * _dynMStaticParam.K;
         auto AC_line_size = (_dynMStaticParam.K + N_block);
         auto AC_lines = static_cast<int>((_L2 - B_size) / sizeof(float) * 8 / AC_line_size / 10);
 
-        return std::min(M, AC_lines);
+        // at least m block for each threads
+        auto M_block_thread = M / (_nthread * _N_block_num);
+        // prevent too small M block
+        M_block_thread = std::max(M_block_thread, 8);
+        auto M_block_init = std::min(M_block_thread, AC_lines);
+        auto M_block = M_block_init;
+        bool find = false;
+        for (; M_block >= 8; M_block--) {
+            if (M % M_block == 0 && M_block % 8 == 0 && (M / M_block * _N_block_num % _nthread == 0)) {
+                find = true;
+                break;
+            }
+        }
+        if (!find) {
+            M_block = M_block_init;
+            for (; M_block >= 8; M_block--) {
+                if (M % M_block == 0 && M_block % 8 == 0) {
+                    find = true;
+                    break;
+                }
+            }
+            if (!false) {
+                M_block = M_block_init;
+                for (; M_block >= 8; M_block--) {
+                    if (M % M_block == 0) {
+                        find = true;
+                        break;
+                    }
+                }
+            }
+        }
+        return find ? M_block : M_block_init;
     }
 
     void init_postops_offset(int ocb, int n_block, GemmDynMRuntimeParam &param, const GemmDynMRuntimeParam& orgParam) {
@@ -80,6 +112,7 @@ struct gemm_driver::gemm_driver_impl {
         auto M_tail = runtime_param.m % M;
         auto M_block = (runtime_param.m + M - 1) / M;
         int work_amount = M_block * _N_block_num;
+        bool loopN = runtime_param.m > _dynMStaticParam.N;
 
         parallel(_nthread, [&](const int ithr, const int nthr) {
             if (ithr >= work_amount) return;
@@ -88,7 +121,10 @@ struct gemm_driver::gemm_driver_impl {
             int start, end;
             balance211(work_amount, nthr, ithr, start, end);
             int ocb {0}, osb {0};
-            nd_iterator_init(start, osb, M_block, ocb, _N_block_num);
+            if (loopN)
+                nd_iterator_init(start, osb, M_block, ocb, _N_block_num);
+            else
+                nd_iterator_init(start, ocb, _N_block_num, osb, M_block);
             while (start++ < end) {
                 init_postops_offset(ocb, _N_block, param, runtime_param);
                 param.a = static_cast<uint8_t*>(runtime_param.a) + osb * M * _dynMStaticParam.lda;
@@ -103,7 +139,10 @@ struct gemm_driver::gemm_driver_impl {
                 else
                     _kernels[_N_block](param);
 
-                nd_iterator_step(osb, M_block, ocb, _N_block_num);
+                if (loopN)
+                    nd_iterator_step(osb, M_block, ocb, _N_block_num);
+                else
+                    nd_iterator_step(ocb, _N_block_num, osb, M_block);
             }
         });
     }
