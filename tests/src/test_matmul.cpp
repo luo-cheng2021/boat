@@ -54,7 +54,7 @@ protected:
     virtual void verify(int index) {
         EXPECT_EQ(index + 1, 1);
     }
-    gemm_driver _gemm;
+    matmul _gemm;
     int _M, _N, _K;
 };
 

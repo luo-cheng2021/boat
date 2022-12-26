@@ -8,17 +8,20 @@
 
 using namespace boat;
 // inner product sample:
-// --fix-times-per-prb=10000 --mode=p --ip --reset --allow-enum-tags-only=0 --engine=cpu --dir=FWD_B  --cfg=f32
+// --fix-times-per-prb=10000 --mode=p --matmul --reset --allow-enum-tags-only=0 --engine=cpu --dir=FWD_B  --cfg=f32
 //     --stag=ab --wtag=ab --dtag=ab  --attr-scratchpad=user mb15ic512oc37
 DEFINE_int32(fix_times_per_prb, 1, "running times");
-DEFINE_bool(ip, true, "inner product testing");
+DEFINE_bool(matmul, true, "inner product testing");
 
 using Ms = std::chrono::duration<double, std::ratio<1, 1000>>;
 
 void test_ip(const char* param) {
     int M, N, K;
-    sscanf(param, "mb%dic%doc%d", &M, &K, &N);
-    gemm_driver gemm;
+    if (sscanf(param, "mb%dic%doc%d", &M, &K, &N) != 3) {
+        std::cout << "param format is wrong: " << param << "\n";
+        return;
+    }
+    matmul gemm;
     GemmDynMStaticParam gemmParam = {
         dnnl_f32, dnnl_f32, dnnl_f32,
         N, K, K * 4, N * 4, N * 4
@@ -50,7 +53,7 @@ void test_ip(const char* param) {
 
 int main(int argc, char *argv[]) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    if (FLAGS_ip) {
+    if (FLAGS_matmul) {
         if (argc < 2) {
             std::cout << "command line format is wrong\n";
             return -1;

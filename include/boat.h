@@ -206,13 +206,13 @@ struct gemm_kernel {
     std::shared_ptr<gemm_kernel_impl> _impl;
 };
 
-struct gemm_driver {
-    gemm_driver();
+struct matmul {
+    matmul();
     bool init(const GemmDynMStaticParam& static_param);
     void operator()(const GemmDynMRuntimeParam& runtime_param);
 
-    struct gemm_driver_impl;
-    std::shared_ptr<gemm_driver_impl> _impl;
+    struct matmul_impl;
+    std::shared_ptr<matmul_impl> _impl;
 };
 
 };

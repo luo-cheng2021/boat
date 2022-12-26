@@ -15,7 +15,7 @@ using namespace dnnl::impl::utils;
 
 namespace boat {
 
-struct gemm_driver::gemm_driver_impl {
+struct matmul::matmul_impl {
     std::unordered_map<int, gemm_kernel<cpu_isa_t::avx512_core>> _kernels;
     int _nthread = 0;
     int _N_block_num = 0;
@@ -24,7 +24,7 @@ struct gemm_driver::gemm_driver_impl {
     unsigned int _L2;
     GemmDynMStaticParam _dynMStaticParam;
 
-    gemm_driver_impl() {
+    matmul_impl() {
         _L2 = getDataCacheSize(2);
     }
 
@@ -146,20 +146,20 @@ struct gemm_driver::gemm_driver_impl {
             }
         });
     }
-    ~gemm_driver_impl() {
+    ~matmul_impl() {
 
     }
 };
 
-gemm_driver::gemm_driver() :
-    _impl(std::make_shared<gemm_driver_impl>()) {
+matmul::matmul() :
+    _impl(std::make_shared<matmul_impl>()) {
 }
 
-bool gemm_driver::init(const GemmDynMStaticParam& static_param) {
+bool matmul::init(const GemmDynMStaticParam& static_param) {
     return _impl->init(static_param);
 }
 
-void gemm_driver::operator()(const GemmDynMRuntimeParam& runtime_param) {
+void matmul::operator()(const GemmDynMRuntimeParam& runtime_param) {
     _impl->exec(runtime_param);
 }
 
