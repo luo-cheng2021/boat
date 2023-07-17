@@ -5,21 +5,21 @@
 namespace coat {
 
 inline void jump(asmjit::Label label
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     , const char* file=__builtin_FILE(), int line=__builtin_LINE()
 #endif
 ) {
     _CC.jmp(label);
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     ((PerfCompiler&)_CC).attachDebugLine(file, line);
 #endif
 }
 inline void jump(const Condition& cond, asmjit::Label label
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     , const char* file=__builtin_FILE(), int line=__builtin_LINE()
 #endif
 ) {
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     cond.compare(file, line);
     cond.jump(label, file, line);
 #else
@@ -84,7 +84,7 @@ void if_then_else(Condition cond, Then&& then, Else&& else_
 
 template<typename Fn>
 void loop_while(Condition cond, Fn&& body
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     , const char* file=__builtin_FILE(), int line=__builtin_LINE()
 #endif
 ) {
@@ -92,7 +92,7 @@ void loop_while(Condition cond, Fn&& body
     asmjit::Label l_exit = _CC.newLabel();
 
     // check if even one iteration
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     jump(!cond, l_exit, file, line); // if not jump over
 #else
     jump(!cond, l_exit); // if not jump over
@@ -101,7 +101,7 @@ void loop_while(Condition cond, Fn&& body
     // loop
     _CC.bind(l_loop);
         body();
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
     jump(cond, l_loop, file, line);
 #else
     jump(cond, l_loop);

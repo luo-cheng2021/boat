@@ -4,6 +4,8 @@
 #include <thread>
 #include <assert.h>
 #include <asmjit/asmjit.h>
+#include "gdb/gdbjit.h"
+#include "perfcompiler.h"
 
 namespace coat {
 
@@ -22,7 +24,12 @@ inline JitRuntimeEnv& getJitRuntimeEnv() {
 }
 
 struct ThreadCompilerContext {
+#if 1 //def PROFILING_SOURCE
+    PerfCompiler cc;
+    GDBJit gdb;
+#else
     asmjit::x86::Compiler cc;
+#endif
 };
 
 // in order to avoid pass cc anywhere make it a global

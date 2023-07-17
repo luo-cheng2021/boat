@@ -17,10 +17,21 @@ namespace coat {
     };
 
     template<typename T> using D = DebugOperand<T>;
-#    define DL ((PerfCompiler&)cc).attachDebugLine(other.file, other.line)
+#    define DL ((PerfCompiler&)::coat::getCcContext().gdb).attachDebugLine(other.file, other.line)
 #    define OP other.operand
 #    define PASSOP(x) {(x), other.file, other.line}
 #else
+    // it just carries the source file and line number, additionally to the operand
+    template<typename T>
+    struct DebugOperand {
+        const T& operand;
+        const char* file;
+        int line;
+
+        DebugOperand(const T& operand, const char* file=__builtin_FILE(), int line=__builtin_LINE())
+            : operand(operand), file(file), line(line) {}
+    };
+
     template<typename T> using D = T;
 #    define DL
 #    define OP other

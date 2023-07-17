@@ -75,7 +75,7 @@ struct Condition {
     }
 
     void compare(
-#ifdef PROFILING_SOURCE
+#if 1 // PROFILING_SOURCE
         const char* file=__builtin_FILE(), int line=__builtin_LINE()
 #endif
     ) const {
@@ -98,7 +98,7 @@ struct Condition {
                     assert(false);
             }
         }
-#ifdef PROFILING_SOURCE
+#if 1 // PROFILING_SOURCE
         ((PerfCompiler&)_CC).attachDebugLine(file, line);
 #endif
     }
@@ -124,7 +124,7 @@ struct Condition {
         }
     }
     void jump(asmjit::Label label
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
         , const char* file=__builtin_FILE(), int line=__builtin_LINE()
 #endif
     ) const {
@@ -158,7 +158,7 @@ struct Condition {
                     assert(false);
             }
         }
-#ifdef PROFILING_SOURCE
+#if 1 //def PROFILING_SOURCE
         ((PerfCompiler&)_CC).attachDebugLine(file, line);
 #endif
     }

@@ -48,7 +48,7 @@ struct Vec final {
     // load Vec from memory, always unaligned load
     Vec& operator=(Ref<Value<T>>&& src) { load(std::move(src)); return *this; }
     // load Vec from memory, always unaligned load
-    void load(Ref<Value<T>>&& src) {
+    void load(Ref<Value<T>>&& src, const char* file=__builtin_FILE(), int line=__builtin_LINE()) {
         if constexpr(std::is_same_v<reg_type,asmjit::x86::Xmm>) {
             // 128 bit SSE
             src.mem.setSize(16); // change to xmmword
@@ -58,11 +58,12 @@ struct Vec final {
             src.mem.setSize(32); // change to ymmword
             _CC.vmovdqu(reg, src);
         }
+        ((PerfCompiler&)_CC).attachDebugLine(file, line);
     }
     // load Vec from memory, always unaligned load
     Vec& operator=(Ref<Value<T>>& src) { load(src); return *this; }
     // load Vec from memory, always unaligned load
-    void load(Ref<Value<T>>& src) {
+    void load(Ref<Value<T>>& src, const char* file=__builtin_FILE(), int line=__builtin_LINE()) {
         if constexpr(std::is_same_v<reg_type,asmjit::x86::Xmm>) {
             // 128 bit SSE
             src.mem.setSize(16); // change to xmmword
@@ -72,6 +73,7 @@ struct Vec final {
             src.mem.setSize(32); // change to ymmword
             _CC.vmovdqu(reg, src);
         }
+        ((PerfCompiler&)_CC).attachDebugLine(file, line);
     }
 
     // unaligned store
@@ -402,7 +404,7 @@ struct Vec<float, width> final {
     inline unsigned getWidth() const { return width; }
 
     // TODO: support mask
-    void load(Ref<Value<T>>&& src, bool broadcast = false) {
+    void load(Ref<Value<T>>&& src, bool broadcast = false, const char* file=__builtin_FILE(), int line=__builtin_LINE()) {
         if constexpr(std::is_same_v<reg_type,asmjit::x86::Xmm>) {
             if (broadcast) {
                 _CC.movss(reg, src);
@@ -426,6 +428,7 @@ struct Vec<float, width> final {
                 _CC.vmovups(reg, src);
             }
         }
+        ((PerfCompiler&)_CC).attachDebugLine(file, line);
     }
     void kzload(Ref<Value<T>>&& src, asmjit::x86::KReg k) {
         if constexpr (std::is_same_v<reg_type, asmjit::x86::Xmm>) {

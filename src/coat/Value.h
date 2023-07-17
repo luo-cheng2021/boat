@@ -173,7 +173,7 @@ struct Value final : public ValueBase {
     }
 
     // assignment
-    Value& operator=(const Value& other) {
+    Value& operator=(const D<Value>& other) {
         _CC.mov(reg, OP);
         DL;
         return *this;
@@ -194,7 +194,7 @@ struct Value final : public ValueBase {
         }
         return *this;
     }
-    Value& operator=(const Ref<Value>& other) {
+    Value& operator=(const D<Ref<Value>>& other) {
         _CC.mov(reg, OP);
         DL;
         return *this;
@@ -535,36 +535,36 @@ struct Value<float> final {
 #endif
 
     // real copy means new register and copy content
-    Value(const Value& other) : Value() {
+    Value(const D<Value>& other) : Value() {
         *this = other;
     }
     // move ctor
     Value(const Value&& other) : reg(std::move(other.reg)) {}
     // copy ctor for ref, basically loads value from memory and stores in register
-    Value(const Ref<Value>& other) : Value() {
+    Value(const D<Ref<Value>>& other) : Value() {
         *this = other;
     }
     operator const asmjit::x86::Xmm&() const { return reg; }
     operator       asmjit::x86::Xmm&()       { return reg; }
     // assignment
-    Value& operator=(const Value& other) {
-        _CC.movss(reg, other.reg);
+    Value& operator=(const D<Value>& other) {
+        _CC.movss(reg, OP);
         DL;
         return *this;
     }
-    Value& operator=(const float other) {
-        if (other == 0) {
+    Value& operator=(const D<float> other) {
+        if (OP == 0) {
             _CC.vpxor(reg, reg, reg);
             DL;
         } else {
-            auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, other);
+            auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, OP);
             _CC.vmovss(reg, c0);
             DL;
         }
         return *this;
     }
-    Value& operator=(const Ref<Value>& other) {
-        _CC.movss(reg, other.mem);
+    Value& operator=(const D<Ref<Value>>& other) {
+        _CC.movss(reg, OP.mem);
         DL;
         return *this;
     }
@@ -576,83 +576,83 @@ struct Value<float> final {
 
     // memory operand not possible on right side
 
-    Value& operator*=(const Value& other) {
-        _CC.vmulss(reg, reg, other.reg);
+    Value& operator*=(const D<Value>& other) {
+        _CC.vmulss(reg, reg, OP.reg);
         DL;
         return *this;
     }
 
-    Value& operator/=(const Value& other) {
-        _CC.vdivss(reg, reg, other.reg);
+    Value& operator/=(const D<Value>& other) {
+        _CC.vdivss(reg, reg, OP.reg);
         DL;
         return *this;
     }
-    Value& operator+=(const Value& other) { _CC.vaddss(reg, reg, other); DL; return *this; }
-    Value& operator+=(const Ref<Value>& other) { _CC.vaddss(reg, reg, other); DL; return *this; }
+    Value& operator+=(const D<Value>& other) { _CC.vaddss(reg, reg, OP); DL; return *this; }
+    Value& operator+=(const D<Ref<Value>>& other) { _CC.vaddss(reg, reg, OP); DL; return *this; }
     
-    Value& operator-=(const Value& other) { _CC.vsubss(reg, reg, other); DL; return *this; }
-    Value& operator-=(const Ref<Value>& other) { _CC.vsubss(reg, reg, other); DL; return *this; }
-    Value& operator+=(const float other) {
-        if (other == 0) {
-            DL;
+    Value& operator-=(const D<Value>& other) { _CC.vsubss(reg, reg, OP); DL; return *this; }
+    Value& operator-=(const D<Ref<Value>>& other) { _CC.vsubss(reg, reg, OP); DL; return *this; }
+    Value& operator+=(const D<float> other) {
+        if (OP == 0) {
+            //DL;
         } else {
-            auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, other);
+            auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, OP);
             _CC.vaddss(reg, reg, c0);
-            DL;
+            //DL;
         }
         return *this;
     }
     Value& operator-=(const float other) {
         if (other == 0) {
-            DL;
+            //DL;
         } else {
             auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, other);
             _CC.vsubss(reg, reg, c0);
-            DL;
+            //DL;
         }
         return *this;
     }
     Value& operator*=(const float other) {
         if (other == 0) {
             _CC.vpxor(reg, reg, reg);
-            DL;
+            //DL;
         } else {
             auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, other);
             _CC.vmulss(reg, reg, c0);
-            DL;
+            //DL;
         }
         return *this;
     }
     Value& operator/=(const float other) {
         auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, other);
         _CC.vdivss(reg, reg, c0);
-        DL;
+        //DL;
         return *this;
     }
     // operators creating temporary virtual registers
-    Value operator+(const Value& other) { Value tmp("tmp"); tmp = *this; tmp += other; DL; return tmp; }
-    Value operator+(const Ref<Value>& other) { Value tmp("tmp"); tmp = *this; tmp += other; DL; return tmp; }
-    Value operator-(const Value& other) { Value tmp("tmp"); tmp = *this; tmp -= other; DL; return tmp; }
-    Value operator-(const Ref<Value>& other) { Value tmp("tmp"); tmp = *this; tmp -= other; DL; return tmp; }
-    Value operator*(const Value& other) { Value tmp("tmp"); tmp = *this; tmp *= other; DL; return tmp; }
-    Value operator*(const Ref<Value>& other) { Value tmp("tmp"); tmp = *this; tmp *= other; DL; return tmp; }
-    Value operator/(const Value& other) { Value tmp("tmp"); tmp = *this; tmp /= other; DL; return tmp; }
-    Value operator/(const Ref<Value>& other) { Value tmp("tmp"); tmp = *this; tmp /= other; DL; return tmp; }
+    Value operator+(const D<Value>& other) { Value tmp("tmp"); tmp = *this; tmp += OP; DL; return tmp; }
+    Value operator+(const D<Ref<Value>>& other) { Value tmp("tmp"); tmp = *this; tmp += OP; DL; return tmp; }
+    Value operator-(const D<Value>& other) { Value tmp("tmp"); tmp = *this; tmp -= OP; DL; return tmp; }
+    Value operator-(const D<Ref<Value>>& other) { Value tmp("tmp"); tmp = *this; tmp -= OP; DL; return tmp; }
+    Value operator*(const D<Value>& other) { Value tmp("tmp"); tmp = *this; tmp *= OP; DL; return tmp; }
+    Value operator*(const D<Ref<Value>>& other) { Value tmp("tmp"); tmp = *this; tmp *= OP; DL; return tmp; }
+    Value operator/(const D<Value>& other) { Value tmp("tmp"); tmp = *this; tmp /= OP; DL; return tmp; }
+    Value operator/(const D<Ref<Value>>& other) { Value tmp("tmp"); tmp = *this; tmp /= OP; DL; return tmp; }
     //ASMJIT_OPERATORS_WITH_TEMPORARIES(Value)
 
     // comparisons
-    Condition operator==(const Value& other) const { return {reg, other.reg, ConditionFlag::e_f};  }
-    Condition operator!=(const Value& other) const { return {reg, other.reg, ConditionFlag::ne_f}; }
-    Condition operator< (const Value& other) const { return {reg, other.reg, ConditionFlag::l_f};  }
-    Condition operator<=(const Value& other) const { return {reg, other.reg, ConditionFlag::le_f}; }
-    Condition operator> (const Value& other) const { return {reg, other.reg, ConditionFlag::g_f};  }
-    Condition operator>=(const Value& other) const { return {reg, other.reg, ConditionFlag::ge_f}; }
-    Condition operator==(const Ref<Value>& other) const { return {reg, other.mem, ConditionFlag::e_f};  }
-    Condition operator!=(const Ref<Value>& other) const { return {reg, other.mem, ConditionFlag::ne_f}; }
-    Condition operator< (const Ref<Value>& other) const { return {reg, other.mem, ConditionFlag::l_f};  }
-    Condition operator<=(const Ref<Value>& other) const { return {reg, other.mem, ConditionFlag::le_f}; }
-    Condition operator> (const Ref<Value>& other) const { return {reg, other.mem, ConditionFlag::g_f};  }
-    Condition operator>=(const Ref<Value>& other) const { return {reg, other.mem, ConditionFlag::ge_f}; }
+    Condition operator==(const D<Value>& other) const { return {reg, OP.reg, ConditionFlag::e_f};  }
+    Condition operator!=(const D<Value>& other) const { return {reg, OP.reg, ConditionFlag::ne_f}; }
+    Condition operator< (const D<Value>& other) const { return {reg, OP.reg, ConditionFlag::l_f};  }
+    Condition operator<=(const D<Value>& other) const { return {reg, OP.reg, ConditionFlag::le_f}; }
+    Condition operator> (const D<Value>& other) const { return {reg, OP.reg, ConditionFlag::g_f};  }
+    Condition operator>=(const D<Value>& other) const { return {reg, OP.reg, ConditionFlag::ge_f}; }
+    Condition operator==(const D<Ref<Value>>& other) const { return {reg, OP.mem, ConditionFlag::e_f};  }
+    Condition operator!=(const D<Ref<Value>>& other) const { return {reg, OP.mem, ConditionFlag::ne_f}; }
+    Condition operator< (const D<Ref<Value>>& other) const { return {reg, OP.mem, ConditionFlag::l_f};  }
+    Condition operator<=(const D<Ref<Value>>& other) const { return {reg, OP.mem, ConditionFlag::le_f}; }
+    Condition operator> (const D<Ref<Value>>& other) const { return {reg, OP.mem, ConditionFlag::g_f};  }
+    Condition operator>=(const D<Ref<Value>>& other) const { return {reg, OP.mem, ConditionFlag::ge_f}; }
 
     Condition operator==(float f) const {
         auto c0 = _CC.newFloatConst(asmjit::ConstPoolScope::kLocal, f);

@@ -8,8 +8,9 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bin/boat_tests",
-            "args": [],
+            //"program": "${workspaceFolder}/build/bin/boat_tests",
+            "program": "${workspaceFolder}/build/bin/bench",
+            "args": ["--read", "102400"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
@@ -24,6 +25,11 @@
                 {
                     "description":  "Set Disassembly Flavor to Intel",
                     "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                {
+                    "description":  "jit reader",
+                    "text": "jit-reader-load /home/guy_tamir/luocheng/boat/src/gdb/jit-reader/gdbjit-reader.so",
                     "ignoreFailures": true
                 }
             ]

@@ -5,8 +5,8 @@
 #include <type_traits>
 #include "Global.h"
 //#include <perf-util/jit_utils/jit_utils.hpp>
-#ifdef PROFILING_SOURCE
-#    include <asmjit-utilities/perf/perfcompiler.h>
+#if 1 // def PROFILING_SOURCE
+#    include "perfcompiler.h"
 #endif
 
 namespace coat {
@@ -42,7 +42,7 @@ struct Function<R(*)(Args...)> {
 
     asmjit::CodeHolder code;
 #ifdef PROFILING_SOURCE
-    PerfCompiler cc;
+    //PerfCompiler cc;
 #else
 #endif
 
@@ -124,8 +124,8 @@ struct Function<R(*)(Args...)> {
 
         _CC.endFunc();
         _CC.finalize(
-#ifdef PROFILING_SOURCE
-            asmrt.jd
+#if 1 //def PROFILING_SOURCE
+            ::coat::getCcContext().gdb
 #endif
         );
 
@@ -136,8 +136,8 @@ struct Function<R(*)(Args...)> {
         }
         //dnnl::impl::cpu::jit_utils::register_jit_code((void*)fn, code.codeSize(), funcName, __FILE__);
         // dump generated code for profiling with perf
-#if defined(PROFILING_ASSEMBLY) || defined(PROFILING_SOURCE)
-        getJitRuntimeEnv().rt.jd.addCodeSegment(funcName, (void*)fn, code.codeSize());
+#if 1 //defined(PROFILING_ASSEMBLY) || defined(PROFILING_SOURCE)
+        ::coat::getCcContext().gdb.addCodeSegment(funcName, reinterpret_cast<uint64_t>(fn), code.codeSize());
 #endif
         return fn;
     }

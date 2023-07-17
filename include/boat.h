@@ -215,4 +215,23 @@ struct matmul {
     std::shared_ptr<matmul_impl> _impl;
 };
 
+template <cpu_isa_t isa>
+struct mem_read_kernel {
+    mem_read_kernel();
+    bool init(int size);
+    void operator()(int8_t* buf);
+
+    struct mem_read_kernel_impl;
+    std::shared_ptr<mem_read_kernel_impl> _impl;
+};
+
+struct mem_read {
+    mem_read();
+    bool init(int size);
+    void operator()(int times);
+
+    struct mem_read_impl;
+    std::shared_ptr<mem_read_impl> _impl;
+};
+
 };

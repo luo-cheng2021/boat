@@ -23,7 +23,7 @@ struct ValueBase {
 inline ValueBase& operator++(const D<ValueBase>& other) {
     _CC.inc(OP.reg);
 #ifdef PROFILING_SOURCE
-    ((PerfCompiler&)other.operand.cc).attachDebugLine(other.file, other.line);
+    _CC.attachDebugLine(other.file, other.line);
 #endif
     return const_cast<ValueBase&>(OP); //HACK
 }
@@ -31,7 +31,7 @@ inline ValueBase& operator++(const D<ValueBase>& other) {
 inline ValueBase& operator--(const D<ValueBase>& other) {
     _CC.dec(OP.reg);
 #ifdef PROFILING_SOURCE
-    ((PerfCompiler&)other.operand.cc).attachDebugLine(other.file, other.line);
+    _CC.attachDebugLine(other.file, other.line);
 #endif
     return const_cast<ValueBase&>(OP); //HACK
 }

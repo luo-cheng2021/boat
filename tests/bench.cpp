@@ -11,7 +11,9 @@ using namespace boat;
 // --fix-times-per-prb=10000 --mode=p --matmul --reset --allow-enum-tags-only=0 --engine=cpu --dir=FWD_B  --cfg=f32
 //     --stag=ab --wtag=ab --dtag=ab  --attr-scratchpad=user mb15ic512oc37
 DEFINE_int32(fix_times_per_prb, 1, "running times");
-DEFINE_bool(matmul, true, "inner product testing");
+DEFINE_bool(matmul, false, "inner product testing");
+
+DEFINE_bool(read, true, "read testing");
 
 using Ms = std::chrono::duration<double, std::ratio<1, 1000>>;
 
@@ -51,6 +53,28 @@ void test_ip(const char* param) {
     printf("%s:\ntotal perf: min(ms): %.4f avg(ms): %.4f\n", param, min_time, total / FLAGS_fix_times_per_prb);
 }
 
+void test_read(const char* param) {
+    int size = std::atoi(param);
+    if (size <= 0) {
+        std::cout << "param format is wrong: " << param << "\n";
+        return;
+    }
+    mem_read read;
+    read.init(size);
+    read(1);
+    double total = 0, min_time = 1000000.0f;
+    for (int i = 0; i < 1; i++) {
+        auto start = std::chrono::steady_clock::now();
+        read(FLAGS_fix_times_per_prb);
+        auto end = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<Ms>(end - start).count();
+        total += duration;
+        if (duration < min_time)
+            min_time = duration;
+    }
+    printf("%s:\ntotal perf: min(ms): %.4f avg(ms): %.4f, bandwith=%.4f MB/s (1K=1000)\n", param, min_time, total / FLAGS_fix_times_per_prb, (double)size * FLAGS_fix_times_per_prb / total / 1000 / 1000 * 1000);
+}
+
 int main(int argc, char *argv[]) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     if (FLAGS_matmul) {
@@ -59,6 +83,14 @@ int main(int argc, char *argv[]) {
             return -1;
         }
         test_ip(argv[argc - 1]);
+    }
+
+    if (FLAGS_read) {
+        if (argc < 2) {
+            std::cout << "command line format is wrong\n";
+            return -1;
+        }
+        test_read(argv[argc - 1]);
     }
 
     return 0;
