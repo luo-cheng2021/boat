@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include <numeric>
 #include <algorithm>
@@ -229,8 +231,15 @@ static func_t make_gemm_stride(int N, int K, int lda, int ldb, int ldc, PostOpSt
         // extract all second address from parameter 'ops' of jit func
         for (auto i = 0; i < post_static_params.num; i++) {
             if (post_static_params.ops[i].alg_type >= AlgType::Add) {
-                auto params = j_post_runtime_params.get_value<PostOpRuntimeParams::member_params>("params");
-                auto addr = params[i].get_value<PostOpRuntimeParam::member_right_addr>("addr");
+                constexpr auto f1 = get_offset_type<&PostOpRuntimeParams::params>();
+                static_assert(std::get<0>(f1) == 0, "offset");
+                static_assert(std::is_same_v<std::remove_cv_t<std::tuple_element_t<1, decltype(f1)>>, PostOpRuntimeParam*>, "type");
+
+                // auto params = j_post_runtime_params.get_value<PostOpRuntimeParams::member_params>("params");
+                //auto params = GET(j_post_runtime_params, params);
+                auto params = j_post_runtime_params.get<&PostOpRuntimeParams::params>();
+                auto addr = j_post_runtime_params.get<&PostOpRuntimeParams::params>()[i].get<&PostOpRuntimeParam::right_addr>();
+                //auto addr = params1[i].get_value<PostOpRuntimeParam::member_right_addr>("addr");
                 // TODO: ptr has no 'operator= addr'
                 auto op = std::make_shared<share_p::element_type>(addr);
                 post_ops_runtime_addrs.push_back(op);

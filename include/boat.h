@@ -176,7 +176,8 @@ struct PostOpRuntimeParams {
     #define MEMBERS(x)    \
         x(JitParamArr, params)
 
-    COAT_DECLARE_PRIVATE(MEMBERS)
+    //COAT_DECLARE_PRIVATE(MEMBERS)
+    PostOpRuntimeParam params[MAX_POSTOPS_NUM];
     #undef MEMBERS
     // PostOpRuntimeParam params[MAX_POSTOPS_NUM];
 };
